@@ -81,12 +81,33 @@ ul.evs { list-style: none; margin: 0; padding: 0; }
 .notes h2 { font-family: var(--font-display); margin: 0 0 8px; font-size: 1.2rem; }
 .notes ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 6px; max-width: 80ch; }
 @media (min-width: 640px) { .week { max-width: 720px; } }
-@media (min-width: 1000px) {
-  .tabs { display: none; }
-  .week { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; max-width: none; align-items: start; }
-  .day { display: block; }
-  .ev { grid-template-columns: minmax(0, 1fr); gap: 1px; }
-  .dayhead { flex-direction: column; gap: 0; }
+/* Wider screens: pick a day, then see a table. Rows are start times, columns are locations, cells are activities. */
+.tview { display: none; --tbg: var(--panel); }
+.tview.is-today { --tbg: var(--today); }
+.dtitle { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 0 2px 8px; }
+.dtitle h2 { font-family: var(--font-display); font-size: 1.5rem; margin: 0; font-weight: 700; }
+.dtitle span { color: var(--muted); font-size: .9rem; }
+.tscroll { overflow-x: auto; border: 1px solid var(--line); background: var(--tbg); }
+table.loc { border-collapse: separate; border-spacing: 0; width: 100%; }
+table.loc th, table.loc td { padding: 9px 11px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); background: var(--tbg); }
+table.loc thead th { font: 700 1.02rem var(--font-display); border-top: 4px solid var(--c); border-bottom: 2px solid var(--fg); min-width: 10rem; }
+table.loc thead th.corner { border-top-color: transparent; min-width: 0; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
+table.loc th.corner, table.loc tbody th { position: sticky; left: 0; z-index: 1; width: 5rem; min-width: 5rem; text-align: right; font-variant-numeric: tabular-nums; }
+table.loc tbody th { font: 600 1rem var(--font-display); }
+table.loc tbody th small { color: var(--muted); font-size: .75rem; margin-left: 1px; }
+table.loc thead th.band { font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; color: var(--c); padding-block: 6px; border-bottom: 1px solid var(--line); }
+table.loc thead th.room { border-top: 0; }
+table.loc tr > :last-child { border-right: 0; }
+table.loc tbody tr:last-child > * { border-bottom: 0; }
+.cev + .cev { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--line); }
+.cev.past { opacity: .45; }
+.cev .when { font-size: .85rem; color: var(--muted); }
+.cev .what { font-size: .95rem; line-height: 1.25; }
+.cev .meta { font-size: .82rem; line-height: 1.3; }
+@media (min-width: 700px) {
+  .week { display: none; }
+  .tview { display: block; }
+  .tabs { max-width: 720px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
@@ -111,6 +132,7 @@ body { margin: 0; -webkit-text-size-adjust: 100%; }
 
   <div class="tabs" id="tabs" role="tablist" aria-label="Day of the week"></div>
   <main class="week" id="week"></main>
+  <div class="tview" id="grid" aria-label="Day schedule by location"></div>
 
   <section class="notes">
     <h2>Good to know</h2>
@@ -341,15 +363,70 @@ function metaHtml(r) {
   return '<strong>' + esc(room) + '</strong>' + (parts.length ? ' · ' + esc(parts.join(' · ')) : '');
 }
 
+// Wider screens: the selected day as a table. Rows are start times, columns are locations.
+var LOCS = [
+  { k: 'Main Gym', s: 'g' }, { k: 'Back Gym', s: 'g' }, { k: 'Cascade Room', s: 'g' }, { k: 'Cycle Core Room', s: 'g' },
+  { k: 'Room not listed', s: 'g' }, { k: 'Main Pool', s: 'm' }, { k: 'Activity Pool', s: 'a' }
+];
+function locOf(r) {
+  if (r[1] === 'm') return 'Main Pool';
+  if (r[1] === 'a') return 'Activity Pool';
+  var m = r[6].match(/(Main Gym|Back Gym|Cascade Room|Cycle Core Room)/i);
+  if (!m) return 'Room not listed';
+  for (var n = 0; n < LOCS.length; n++) if (LOCS[n].k.toLowerCase() === m[1].toLowerCase()) return LOCS[n].k;
+  return 'Room not listed';
+}
+function metaNoRoom(r) {
+  if (r[1] !== 'g') return r[6];
+  return r[6].split(' · ').filter(function (p) { return !/(Main Gym|Back Gym|Cascade Room|Cycle Core Room|room not listed)/i.test(p); }).join(' · ');
+}
+function dayTableHtml(list, i) {
+  var out = '<div class="dtitle"><h2>' + DAYS[i] + '</h2><span>' + (i === todayIdx ? 'Today · ' : '') + list.length + ' listed</span></div>';
+  if (!list.length) return out + '<div class="empty">Nothing matches these filters.</div>';
+  var cols = LOCS.filter(function (c) { return list.some(function (r) { return locOf(r) === c.k; }); });
+  var times = [];
+  list.forEach(function (r) { if (times.indexOf(r[4]) < 0) times.push(r[4]); });
+  times.sort(function (a, b) { return mins(a) - mins(b); });
+  var gCols = cols.filter(function (c) { return c.s === 'g'; });
+  var rs = gCols.length ? ' rowspan="2"' : '';
+  out += '<div class="tscroll"><table class="loc"><thead><tr><th class="corner"' + rs + '>Time</th>' +
+    (gCols.length ? '<th class="band s-g" colspan="' + gCols.length + '">Group Exercise</th>' : '') +
+    cols.filter(function (c) { return c.s !== 'g'; }).map(function (c) { return '<th class="s-' + c.s + '"' + rs + '>' + esc(c.k) + '</th>'; }).join('') + '</tr>' +
+    (gCols.length ? '<tr>' + gCols.map(function (c) { return '<th class="room s-g">' + esc(c.k) + '</th>'; }).join('') + '</tr>' : '') +
+    '</thead><tbody>';
+  times.forEach(function (tm) {
+    var a = t12(tm);
+    out += '<tr><th scope="row">' + a.t + '<small>' + a.ap + '</small></th>';
+    cols.forEach(function (c) {
+      var evs = list.filter(function (r) { return r[4] === tm && locOf(r) === c.k; });
+      out += '<td>' + evs.map(function (r) {
+        var end = r[5] ? mins(r[5]) : mins(r[4]) + 60;
+        var past = i === todayIdx && end <= nowMin;
+        var meta = metaNoRoom(r);
+        return '<div class="cev' + (past ? ' past' : '') + '">' + (r[5] ? '<div class="when">' + when(r[4], r[5]) + '</div>' : '') +
+          '<div class="what">' + esc(r[3]) + '</div>' + (meta ? '<div class="meta">' + esc(meta) + '</div>' : '') + '</div>';
+      }).join('') + '</td>';
+    });
+    out += '</tr>';
+  });
+  return out + '</tbody></table></div>';
+}
+
 function render() {
   Array.prototype.forEach.call(tabs.children, function (b, i) { b.setAttribute('aria-selected', String(i === state.day)); });
   var html = '';
-  DAYS.forEach(function (name, i) {
-    var list = D.filter(function (r) {
+  var lists = DAYS.map(function (name, i) {
+    return D.filter(function (r) {
       if (r[0] !== i || !state.src[r[1]] || !state.kind[r[2]]) return false;
       if (state.q && (r[3] + ' ' + r[6] + ' ' + SRC[r[1]]).toLowerCase().indexOf(state.q) < 0) return false;
       return true;
     }).sort(function (a, b) { return mins(a[4]) - mins(b[4]) || (a[1] < b[1] ? -1 : 1); });
+  });
+  var gridEl = document.getElementById('grid');
+  gridEl.className = 'tview' + (state.day === todayIdx ? ' is-today' : '');
+  gridEl.innerHTML = dayTableHtml(lists[state.day], state.day);
+  DAYS.forEach(function (name, i) {
+    var list = lists[i];
     var items = list.map(function (r) {
       var end = r[5] ? mins(r[5]) : mins(r[4]) + 60;
       var past = i === todayIdx && end <= nowMin;
