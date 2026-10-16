@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Longview YMCA Schedule</title>
+<meta name="description" content="Weekly group exercise, main pool and activity pool schedule in one place.">
+<meta name="theme-color" content="#0a6258">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="YMCA Schedule">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: one week, seven day columns on wide screens, one day at a time with day tabs on phones.
+   Color: ink-teal neutrals; each source gets its own hue (teal = group exercise, blue = main pool, orange = activity pool). */
+:root {
+  --bg: #f3f6f6;
+  --panel: #ffffff;
+  --fg: #12262b;
+  --muted: #5a6f73;
+  --line: #d2dcde;
+  --g: #0b7a6c;
+  --m: #1b5fb0;
+  --a: #b4550f;
+  --today: #e3f1ef;
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1a1d; --panel: #15262a; --fg: #e5eeee; --muted: #93a9ad; --line: #2a4247;
+    --g: #4fcdbb; --m: #7db6f2; --a: #f2a35e; --today: #193338; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1a1d; --panel: #15262a; --fg: #e5eeee; --muted: #93a9ad; --line: #2a4247;
+  --g: #4fcdbb; --m: #7db6f2; --a: #f2a35e; --today: #193338; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.4;
+  padding-inline: 16px; padding-block: 20px 40px; }
+* { box-sizing: border-box; }
+.wrap { max-width: 1500px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(1.9rem, 5vw, 2.8rem); line-height: 1; margin: 0; letter-spacing: .01em; text-wrap: balance; }
+.sub { color: var(--muted); margin: 6px 0 0; max-width: 60ch; }
+.controls { display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.lbl { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; color: var(--muted); min-width: 4.2rem; }
+.chip { font: 500 .9rem var(--font-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; cursor: pointer; display: inline-flex; gap: 7px; align-items: center; }
+.chip[aria-pressed="false"] { opacity: .5; text-decoration: line-through; }
+.chip .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c, var(--fg)); }
+.chip:focus-visible, .tab:focus-visible, #q:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+.s-g { --c: var(--g); } .s-m { --c: var(--m); } .s-a { --c: var(--a); }
+#q { font: 400 .95rem var(--font-body); color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; width: min(100%, 22rem); }
+.tabs { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.tab { font: 600 .95rem var(--font-display); color: var(--fg); background: var(--panel); border: 1px solid var(--line); padding: 9px 0; cursor: pointer; border-radius: 6px; }
+.tab[aria-selected="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.tab.is-today { text-decoration: underline; text-underline-offset: 3px; }
+.week { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.day { display: none; background: var(--panel); border: 1px solid var(--line); min-width: 0; }
+.day.is-sel { display: block; }
+.day.is-today { background: var(--today); }
+.dayhead { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 12px; border-bottom: 2px solid var(--fg); position: sticky; top: env(safe-area-inset-top, 0px); background: inherit; }
+.dayhead h2 { font-family: var(--font-display); font-size: 1.35rem; margin: 0; font-weight: 700; }
+.dayhead span { color: var(--muted); font-size: .85rem; }
+ul.evs { list-style: none; margin: 0; padding: 0; }
+.ev { display: grid; grid-template-columns: 8.2rem minmax(0, 1fr); gap: 4px 10px; padding: 9px 12px; border-top: 1px solid var(--line); }
+.ev:first-child { border-top: 0; }
+.ev.past { opacity: .45; }
+.when { font-variant-numeric: tabular-nums; font-weight: 600; font-size: .9rem; }
+.what { font-weight: 600; overflow-wrap: anywhere; }
+.meta { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.meta strong { color: var(--fg); font-weight: 600; }
+.pill { display: inline-block; margin-top: 3px; font: 600 .7rem var(--font-display); letter-spacing: .06em; text-transform: uppercase; color: var(--c); border: 1px solid var(--c); padding: 1px 7px; border-radius: 4px; }
+.empty { padding: 16px 12px; color: var(--muted); }
+.notes { background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; }
+.notes h2 { font-family: var(--font-display); margin: 0 0 8px; font-size: 1.2rem; }
+.notes ul { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 6px; max-width: 80ch; }
+@media (min-width: 640px) { .week { max-width: 720px; } }
+@media (min-width: 1000px) {
+  .tabs { display: none; }
+  .week { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; max-width: none; align-items: start; }
+  .day { display: block; }
+  .ev { grid-template-columns: minmax(0, 1fr); gap: 1px; }
+  .dayhead { flex-direction: column; gap: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+html { color-scheme: light; }
+body { margin: 0; -webkit-text-size-adjust: 100%; }
+[hidden] { display: none !important; }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Longview YMCA Schedule</h1>
+    <p class="sub">Group exercise, main pool and activity pool in one weekly view. Pool times are for Aug 31 to Dec 31, 2026.</p>
+  </header>
+
+  <section class="controls" aria-label="Filters">
+    <div class="row"><span class="lbl">Where</span><span id="src-chips" class="row"></span></div>
+    <div class="row"><span class="lbl">Type</span><span id="kind-chips" class="row"></span></div>
+    <div class="row"><span class="lbl">Find</span><input id="q" type="search" placeholder="Zumba, yoga, Linda, lap swim"></div>
+  </section>
+
+  <div class="tabs" id="tabs" role="tablist" aria-label="Day of the week"></div>
+  <main class="week" id="week"></main>
+
+  <section class="notes">
+    <h2>Good to know</h2>
+    <ul>
+      <li>The printed schedule says it is subject to change. Call 360-423-4770 or check longviewymca.org before you go.</li>
+      <li>Group exercise classes show their start time. The booklet does not print class lengths, except where a range is shown.</li>
+      <li>Classes with a cost need you to sign up first. Prices are shown as printed ($40/$65, $35/$70, $10/$40).</li>
+      <li>Main pool: there is always at least one lap lane open, sometimes two or three. That is why lap swim can overlap with water classes. Lap swim at 12 to 1pm on Mon, Wed and Fri was read from the chart without a printed time.</li>
+      <li>Swim lessons and swim team (4 to 6pm Mon to Thu) use 2 lap lanes from Nov 9 to Feb.</li>
+      <li>Groups are not allowed during open or family swims. The warm water pool is closed during family swims, special events, group programs and morning swim lessons, and stays are 30 minutes max.</li>
+      <li>Line Dancing with Ray on Mondays starts 9/14. Room codes: Back Gym, Main Gym, Cascade Room, Cycle Core Room.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+var DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+var SRC = { g: 'Group Exercise', m: 'Main Pool', a: 'Activity Pool' };
+var KINDS = { class: 'Classes', swim: 'Open, family and lap swim', lesson: 'Lessons and programs' };
+// [day (0 = Mon), source, kind, title, start, end, detail]
+var D = [];
+function add(rows) { rows.forEach(function (r) { D.push(r); }); }
+
+// Group exercise (start times only unless a range was printed)
+add([
+ [0,'g','class','Cycle Together','08:00',null,'Patti · Cycle Core Room'],
+ [0,'g','class','Active Older Adults','08:45',null,'Nancy · Main Gym'],
+ [0,'g','class','Latin Dance','09:15',null,'Laura · Back Gym'],
+ [0,'g','class','Line Dancing','09:15',null,'Ray, starts 9/14 · Cascade Room'],
+ [0,'g','class','Circuit Lab','10:30',null,'Chrissy · Back Gym'],
+ [0,'g','class','Sculpt','10:30',null,'Addie · Cascade Room'],
+ [0,'g','class','Zumba','17:30',null,'Jennifer · Back Gym'],
+
+ [1,'g','class','Zumba + Lift','07:45','08:45','Andrea · Back Gym · $40/$65, sign up first'],
+ [1,'g','class','Cycle (30 min)','08:00','08:30','Janette · Cycle Core Room'],
+ [1,'g','class','Yoga Fit','09:15',null,'Linda · Cascade Room'],
+ [1,'g','class','STEP Aerobics','09:15',null,'Christine · Back Gym'],
+ [1,'g','class','Sit or Stand','10:30',null,'Holly · Back Gym'],
+ [1,'g','class','Barre','10:30',null,'Elizabeth · Cascade Room'],
+ [1,'g','class','Circuit Lab','17:30',null,'Chrissy · Back Gym'],
+ [1,'g','class','TaeKwonDo Beginner','18:00','19:00','Ethron · Cascade Room · $35/$70, sign up first'],
+ [1,'g','class','TaeKwonDo','19:00','20:00','Ethron · Cascade Room · $35/$70, sign up first'],
+
+ [2,'g','class','Cycle Together','08:00',null,'Patti · Cycle Core Room'],
+ [2,'g','class','Active Older Adults','08:45',null,'Nancy · Main Gym'],
+ [2,'g','class','Zumba','09:15',null,'Grace · Back Gym'],
+ [2,'g','class','Yoga Fit','09:15',null,'Mary · Cascade Room'],
+ [2,'g','class','Functional Fitness','10:30',null,'Instructor varies · Back Gym'],
+ [2,'g','class','Line Dancing','10:30',null,'Marcia · Cascade Room'],
+ [2,'g','class','Mommy & Me','16:15',null,'Brittney · Cascade Room · $10/$40, sign up first'],
+ [2,'g','class','Zumba','17:30',null,'Grace · Back Gym'],
+ [2,'g','class','Yoga','17:30',null,'Mary · Cascade Room'],
+
+ [3,'g','class','Zumba + Lift','07:45','08:45','Andrea · Back Gym · $40/$65, sign up first'],
+ [3,'g','class','Cycle (30 min)','08:00','08:30','Janette · Cycle Core Room'],
+ [3,'g','class','Yoga Fit','09:15',null,'Linda · Cascade Room'],
+ [3,'g','class','STEP Aerobics','09:15',null,'Christine · Back Gym'],
+ [3,'g','class','Sit or Stand','10:30',null,'Holly · Back Gym'],
+ [3,'g','class','Circuit Lab','17:30',null,'Chrissy · room not listed'],
+ [3,'g','class','TaeKwonDo Beginner','18:00','19:00','Ethron · Cascade Room · $35/$70, sign up first'],
+ [3,'g','class','TaeKwonDo','19:00','20:00','Ethron · Cascade Room · $35/$70, sign up first'],
+
+ [4,'g','class','Cycle Together','08:00',null,'Patti · Cycle Core Room'],
+ [4,'g','class','Flexible Friday Yoga','09:15',null,'Linda · Cascade Room'],
+ [4,'g','class','Latin Dance','09:15',null,'Laura · Back Gym'],
+ [4,'g','class','Functional Fitness','10:30',null,'Instructor varies · Back Gym'],
+ [4,'g','class','Zumba','17:30',null,'Grace · Back Gym'],
+
+ [5,'g','class','Zumba + Lift','08:00','09:30','Instructor varies · Back Gym'],
+ [6,'g','class','Zumba','13:00',null,'Janette · Back Gym']
+]);
+
+// Main pool
+function mainWeekdays() {
+  add([
+   [0,'m','swim','Lap Swim / Walking','05:00','08:00',''],
+   [0,'m','class','Water Fitness: Wave Makers','08:00','09:00',''],
+   [0,'m','class','Water Fitness: HIIT','09:00','10:00',''],
+   [0,'m','class','Water Fitness: Wave Makers','10:00','11:00',''],
+   [0,'m','class','Stretching & Strengthen','11:00','12:00',''],
+   [0,'m','swim','Lap Swim / Walking','12:00','13:00','Time read from the chart'],
+   [0,'m','class','Water Fitness','13:00','14:00',''],
+   [0,'m','swim','Lap Swim / Walking','14:00','16:00',''],
+   [0,'m','lesson','Swim Lessons / Swim Team','16:00','18:00','Swim Team uses 2 lap lanes Nov 9 to Feb'],
+   [0,'m','swim','Open Swim','18:00','20:30','No groups'],
+
+   [1,'m','swim','Lap Swim / Walking','05:00','09:00','Lanes stay open during classes'],
+   [1,'m','class','Inspire Water Fitness','08:00','09:00',''],
+   [1,'m','class','Inspire','09:00','10:00',''],
+   [1,'m','class','Water Resistance','10:00','11:00',''],
+   [1,'m','class','Joyful Joints','11:00','12:00',''],
+   [1,'m','swim','Lap Swim / Walking','12:00','16:00',''],
+   [1,'m','lesson','Swim Lessons / Swim Team','16:00','18:00','Swim Team uses 2 lap lanes Nov 9 to Feb'],
+   [1,'m','class','Aqua Zumba','18:00','19:00',''],
+   [1,'m','swim','Lap Swim','19:00','20:30',''],
+
+   [2,'m','swim','Lap Swim / Walking','05:00','08:00',''],
+   [2,'m','class','Water Fitness: Wave Makers','08:00','09:00',''],
+   [2,'m','class','Water Fitness: HIIT','09:00','10:00',''],
+   [2,'m','class','Water Fitness: Wave Makers','10:00','11:00',''],
+   [2,'m','class','Stretching & Strengthen','11:00','12:00',''],
+   [2,'m','swim','Lap Swim / Walking','12:00','13:00','Time read from the chart'],
+   [2,'m','class','Water Fitness','13:00','14:00',''],
+   [2,'m','swim','Lap Swim / Walking','14:00','16:00',''],
+   [2,'m','lesson','Swim Lessons / Swim Team','16:00','18:00','Swim Team uses 2 lap lanes Nov 9 to Feb'],
+   [2,'m','swim','Open Swim','18:00','20:30','No groups'],
+
+   [3,'m','swim','Lap Swim / Walking','05:00','09:00','Lanes stay open during classes'],
+   [3,'m','class','Inspire Water Fitness','08:00','09:00',''],
+   [3,'m','class','Inspire','09:00','10:00',''],
+   [3,'m','class','Water Resistance','10:00','11:00',''],
+   [3,'m','class','Joyful Joints','11:00','12:00',''],
+   [3,'m','swim','Lap Swim / Walking','12:00','16:00',''],
+   [3,'m','lesson','Swim Lessons / Swim Team','16:00','18:00','Swim Team uses 2 lap lanes Nov 9 to Feb'],
+   [3,'m','class','Inspire','18:00','19:00',''],
+   [3,'m','swim','Lap Swim','19:00','20:30',''],
+
+   [4,'m','swim','Lap Swim / Walking','05:00','08:00',''],
+   [4,'m','class','Water Fitness: Wave Makers','08:00','09:00',''],
+   [4,'m','class','Water Fitness: HIIT','09:00','10:00',''],
+   [4,'m','class','Water Fitness: Wave Makers','10:00','11:00',''],
+   [4,'m','class','Stretching & Strengthen','11:00','12:00',''],
+   [4,'m','swim','Lap Swim / Walking','12:00','13:00','Time read from the chart'],
+   [4,'m','class','Water Fitness','13:00','14:00',''],
+   [4,'m','swim','Lap Swim / Walking','14:00','18:00',''],
+   [4,'m','swim','Open Swim','18:00','19:30','No groups'],
+
+   [5,'m','swim','Lap Swim / Walking','07:00','13:00',''],
+   [5,'m','swim','Open Swim','13:00','15:30','No groups'],
+   [6,'m','swim','Lap Swim / Walking','11:00','13:00',''],
+   [6,'m','swim','Open Swim','13:00','15:30','No groups']
+  ]);
+}
+mainWeekdays();
+
+// Activity pool
+add([
+ [0,'a','class','Adult Exercise','08:00','11:00',''],
+ [0,'a','class','Joyful Joints','11:00','12:00',''],
+ [0,'a','lesson','Swim Lessons','16:00','18:00',''],
+ [0,'a','swim','Open Swim','18:00','20:30','No groups'],
+
+ [1,'a','class','Adult Exercise','08:00','10:00',''],
+ [1,'a','lesson','Swimming Lessons','10:00','10:30',''],
+ [1,'a','lesson','Progress Center','10:30','11:30',''],
+ [1,'a','lesson','Swim Lessons','16:00','18:00',''],
+ [1,'a','swim','Family Swim','18:00','20:30','Children 17 and under with a parent or guardian'],
+
+ [2,'a','class','Adult Exercise','08:00','11:00',''],
+ [2,'a','class','Joyful Joints','11:00','12:00',''],
+ [2,'a','lesson','YMCA After School','15:00','16:00',''],
+ [2,'a','lesson','Swim Lessons','16:00','18:00',''],
+ [2,'a','swim','Open Swim','18:00','20:30','No groups'],
+
+ [3,'a','class','Adult Exercise','08:00','10:00',''],
+ [3,'a','lesson','Swimming Lessons','10:00','10:30',''],
+ [3,'a','lesson','Group Lessons','10:30','11:30',''],
+ [3,'a','class','Water Yoga','15:00','16:00',''],
+ [3,'a','lesson','Swim Lessons','16:00','18:00',''],
+ [3,'a','swim','Family Swim','18:00','20:30','Children 17 and under with a parent or guardian'],
+
+ [4,'a','class','Adult Exercise','08:00','10:00',''],
+ [4,'a','lesson','Group Lessons','10:00','11:00',''],
+ [4,'a','class','Joyful Joints','11:00','12:00',''],
+ [4,'a','swim','Open Swim','18:00','19:30','No groups'],
+
+ [5,'a','swim','Family Swim','13:00','14:30','Children 17 and under with a parent or guardian · No groups'],
+ [6,'a','swim','Family Swim','13:00','14:30','Children 17 and under with a parent or guardian · No groups']
+]);
+
+function mins(s) { var p = s.split(':'); return +p[0] * 60 + +p[1]; }
+function t12(s) {
+  var m = mins(s), h = Math.floor(m / 60), mm = m % 60;
+  return { t: (h % 12 || 12) + ':' + (mm < 10 ? '0' : '') + mm, ap: h >= 12 ? 'pm' : 'am' };
+}
+function when(st, en) {
+  var a = t12(st);
+  if (!en) return a.t + a.ap;
+  var b = t12(en);
+  return a.ap === b.ap ? a.t + '–' + b.t + b.ap : a.t + a.ap + '–' + b.t + b.ap;
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+var now = new Date();
+var todayIdx = (now.getDay() + 6) % 7;
+var nowMin = now.getHours() * 60 + now.getMinutes();
+var state = { day: todayIdx, src: { g: true, m: true, a: true }, kind: { class: true, swim: true, lesson: true }, q: '' };
+try { var saved = JSON.parse(localStorage.getItem('ymca-filters') || 'null'); if (saved && saved.src && saved.kind) { state.src = saved.src; state.kind = saved.kind; } } catch (e) {}
+
+function chips(hostId, map, key) {
+  var host = document.getElementById(hostId);
+  Object.keys(map).forEach(function (k) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip' + (key === 'src' ? ' s-' + k : '');
+    b.setAttribute('aria-pressed', String(state[key][k]));
+    b.innerHTML = (key === 'src' ? '<span class="dot"></span>' : '') + esc(map[k]);
+    b.addEventListener('click', function () {
+      state[key][k] = !state[key][k];
+      b.setAttribute('aria-pressed', String(state[key][k]));
+      try { localStorage.setItem('ymca-filters', JSON.stringify({ src: state.src, kind: state.kind })); } catch (e) {}
+      render();
+    });
+    host.appendChild(b);
+  });
+}
+chips('src-chips', SRC, 'src');
+chips('kind-chips', KINDS, 'kind');
+document.getElementById('q').addEventListener('input', function (e) { state.q = e.target.value.trim().toLowerCase(); render(); });
+
+var tabs = document.getElementById('tabs');
+DAYS.forEach(function (d, i) {
+  var b = document.createElement('button');
+  b.type = 'button'; b.className = 'tab' + (i === todayIdx ? ' is-today' : '');
+  b.setAttribute('role', 'tab'); b.textContent = d.slice(0, 3);
+  b.addEventListener('click', function () { state.day = i; render(); });
+  tabs.appendChild(b);
+});
+
+// Group exercise: put the room first and make it bold
+function metaHtml(r) {
+  if (r[1] !== 'g') return esc(r[6]);
+  var parts = r[6].split(' · ');
+  var i = -1;
+  parts.forEach(function (p, n) { if (/(Back Gym|Main Gym|Cascade Room|Cycle Core Room|room not listed)/i.test(p)) i = n; });
+  if (i < 0) return esc(r[6]);
+  var room = parts.splice(i, 1)[0];
+  room = room.charAt(0).toUpperCase() + room.slice(1);
+  return '<strong>' + esc(room) + '</strong>' + (parts.length ? ' · ' + esc(parts.join(' · ')) : '');
+}
+
+function render() {
+  Array.prototype.forEach.call(tabs.children, function (b, i) { b.setAttribute('aria-selected', String(i === state.day)); });
+  var html = '';
+  DAYS.forEach(function (name, i) {
+    var list = D.filter(function (r) {
+      if (r[0] !== i || !state.src[r[1]] || !state.kind[r[2]]) return false;
+      if (state.q && (r[3] + ' ' + r[6] + ' ' + SRC[r[1]]).toLowerCase().indexOf(state.q) < 0) return false;
+      return true;
+    }).sort(function (a, b) { return mins(a[4]) - mins(b[4]) || (a[1] < b[1] ? -1 : 1); });
+    var items = list.map(function (r) {
+      var end = r[5] ? mins(r[5]) : mins(r[4]) + 60;
+      var past = i === todayIdx && end <= nowMin;
+      return '<li class="ev' + (past ? ' past' : '') + '"><div class="when">' + when(r[4], r[5]) + '</div><div><div class="what">' + esc(r[3]) + '</div>' +
+        (r[6] ? '<div class="meta">' + metaHtml(r) + '</div>' : '') +
+        '<span class="pill s-' + r[1] + '">' + SRC[r[1]] + '</span></div></li>';
+    }).join('');
+    html += '<section class="day' + (i === state.day ? ' is-sel' : '') + (i === todayIdx ? ' is-today' : '') + '" aria-label="' + name + '">' +
+      '<div class="dayhead"><h2>' + name + '</h2><span>' + (i === todayIdx ? 'Today · ' : '') + list.length + ' listed</span></div>' +
+      (items ? '<ul class="evs">' + items + '</ul>' : '<div class="empty">Nothing matches these filters.</div>') + '</section>';
+  });
+  document.getElementById('week').innerHTML = html;
+}
+render();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  });
+}
+</script>
+</body>
+</html>
