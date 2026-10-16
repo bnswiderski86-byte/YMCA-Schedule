@@ -1,6 +1,6 @@
 // Simple offline cache. When you change the schedule, change VERSION (v1 -> v2)
 // so phones that already installed the app pick up the new files.
-var VERSION = 'v5';
+var VERSION = 'v7';
 var CACHE = 'ymca-schedule-' + VERSION;
 var FILES = [
   './',
@@ -49,5 +49,7 @@ self.addEventListener('fetch', function (e) {
         return res;
       });
     })
+  );
+});
   );
 });
